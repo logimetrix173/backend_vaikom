@@ -297,7 +297,7 @@ router.post("/uploadcreate", checkFileSize, upload.any(), async (req, res) => {
       const loggsfolder = await loggs.create({
         // user_id: (demail && demail.email) || null,
         // guest_id: decodedToken.user.username || null,
-        user_id: demail.email || decodedToken.user.username,
+        user_id: (demail && demail.email) || decodedToken.user.username,
         category: "Upload",
         action: ` File Uploaded : ${file_name} ${uploadedBy}`,
         timestamp: Date.now(),
@@ -471,9 +471,12 @@ router.post("/getfoldernames", async (req, res) => {
     const workspace_type1 = await Workspace.findOne({
       where: { workspace_name: workspace_name },
     });
+    if(!workspace_type1 ){
+    console.log("work_space not found");
+    }
+    let workspace_type = workspace_type1.workspace_type;
     //  console.log(workspace_type1,"fefe")
     // Team space aaya yha se
-    const workspace_type = workspace_type1.workspace_type;
     const id = parseInt(req.body.parent_id);
     const levels = parseInt(req.body.levels);
     const token = req.header("Authorization");
@@ -482,15 +485,81 @@ router.post("/getfoldernames", async (req, res) => {
     // console.log(user_id,"this is userId from getFolder")
     // const workspace_type = req.body.workspace_type
 
+    async function FolderAndFilesSize(folders) {
+      async function calculateFolderSize(folder, totalSize) {
+        const files = await FileUpload.findAll({
+          where: {
+            is_recyclebin: "false",
+            folder_name: folder.folder_name,
+          },
+        });
+    
+        for (const file of files) {
+          totalSize += parseInt(file.file_size);
+        }
+    
+        const childFolders = await Folder.findAll({
+          where: {
+            is_recycle: "false",
+            parent_id: folder.id,
+          },
+        });
+    
+        for (const childFolder of childFolders) {
+          totalSize = await calculateFolderSize(childFolder, totalSize);
+        }
+    
+        folder.dataValues.folder_size = totalSize;
+        return totalSize;
+      }
+    
+      for (let folder of folders) {
+        let totalSize = 0;
+        totalSize = await calculateFolderSize(folder, totalSize);
+      }
+    }
+    
+    // async function FolderAndFilesSize(folders) {
+    //   for (let folder of folders) {
+    //     const files = await FileUpload.findAll({
+    //       where: {
+    //         is_recyclebin: "false",
+    //         folder_name: folder.folder_name,
+    //       },
+    //     });
+    
+    //     let totalSize = 0;
+    
+    //     for (const file of files) {
+    //       totalSize += parseInt(file.file_size);
+    //     }
+    //     // folder.dataValues.folder_size = totalSize;
+    //     const childFolders = await Folder.findAll({
+    //       where: {
+    //         is_recycle: "false",
+    //         parent_id: folder.id,
+    //       },
+    //     });
+    
+    //     for (const childFolder of childFolders) {
+    //       console.log([childFolder],"________childFolder")
+    //       await FolderAndFilesSize([childFolder]);
+    //     }
+    //       folder.dataValues.folder_size = totalSize;
+    //   }
+    // }
+
     // console.log(user_id,"___vn")
     // console.log(req.body,"_____body")
     if (id && levels) {
-      // Retrieve folder names where folder_id matches parent_id
       const folder_name = await Folder.findOne({
         where: {
           id: id,
           workspace_name: workspace_name,
-          workspace_type: workspace_type,
+          [Op.or]: [
+            { workspace_type: workspace_type },
+            { workspace_type: "Guest" },
+          ],
         },
         attributes: ["folder_name"],
       });
@@ -524,47 +593,69 @@ router.post("/getfoldernames", async (req, res) => {
           shared_by: [],
           share_with: [],
         };
-        sharedData.forEach((data) => {
+        sharedData.forEach(async (data)  => {
+          let guest_approved = await Guest.findOne({where:{
+            folder_id:data.folder_id
+          },
+          attributes: ["is_approved1", "is_approved2"],
+        })
+        // console.log(guest_approved,"__________guest_approved")
           if (data.folder_id === object.id) {
             sharedInfo.shared_by.push(data.shared_by);
+          if (guest_approved.is_approved1 === "true" && guest_approved.is_approved2 === "true") {
             sharedInfo.share_with.push(data.guest_email);
+          } else if (guest_approved.is_approved1 === "true" && guest_approved.is_approved2 === "false") {
+            sharedInfo.share_with.push("L1 has approved and L2 is pending");
+          } else if (guest_approved.is_approved2 === "true" && guest_approved.is_approved1 ==="false") {
+            sharedInfo.share_with.push("L2 has approved and L1 is pending ");
+          } else {
+            if (guest_approved.is_approved1 === "false") {
+              sharedInfo.share_with.push("L1 is pending");
+            } else if (guest_approved.is_approved1 === "denied") {
+              sharedInfo.share_with.push("L1 has Declined");
+            }
+          
+            if (guest_approved.is_approved2 === "false") {
+              sharedInfo.share_with.push("L2 is pending");
+            } else if (guest_approved.is_approved2 === "denied") {
+              sharedInfo.share_with.push("L2 has Declined");
+            }
+          }
+            object.dataValues.expiry_date = data.expiry_date;
           } else if (data.file_id === object.id) {
             sharedInfo.shared_by.push(data.shared_by);
-            sharedInfo.share_with.push(data.guest_email);
+            if (guest_approved.is_approved1 === "true" && guest_approved.is_approved2 === "true") {
+              sharedInfo.share_with.push(data.guest_email);
+            } else if (guest_approved.is_approved1 === "true" && guest_approved.is_approved2 === "false") {
+              sharedInfo.share_with.push("L1 has approved and L2 is pending");
+            } else if (guest_approved.is_approved2 === "true" && guest_approved.is_approved1 ==="false") {
+              sharedInfo.share_with.push("L2 has approved and L1 is pending ");
+            } else {
+              if (guest_approved.is_approved1 === "false") {
+                sharedInfo.share_with.push("L1 is pending");
+              } else if (guest_approved.is_approved1 === "denied") {
+                sharedInfo.share_with.push("L1 has Declined");
+              }
+            
+              if (guest_approved.is_approved2 === "false") {
+                sharedInfo.share_with.push("L2 is pending");
+              } else if (guest_approved.is_approved2 === "denied") {
+                sharedInfo.share_with.push("L2 has Declined");
+              }
+            }            
+            // sharedInfo.share_with.push(data.guest_email);
+            object.dataValues.expiry_date = data.expiry_date;
           }
         });
-
         // Assign the arrays to the object.dataValues
         object.dataValues.shared_by = sharedInfo.shared_by;
         object.dataValues.share_with = sharedInfo.share_with;
-        // const sharedDatum = sharedData.find(
-        //   (data) => data.folder_id === object.id
-        // );
-        // if (sharedDatum) {
-        //   object.dataValues.shared_by = sharedDatum.shared_by;
-        //   object.dataValues.share_with = sharedDatum.guest_email;
-        // }
       }
 
       // Apply the function to folders
       folders.forEach((folder) => {
         addSharedInfo(folder, guest_data);
       });
-
-      // folders.forEach((folder) => {
-      //   const user_type = find_user_data.user_type;
-      //   folder.dataValues.user_type = user_type;
-      //   const user_email = find_user_data.email;
-      //   folder.dataValues.user_email = user_email;
-      //   const sharedDatum = guest_data.find((data) => data.folder_id === folder.id);
-      //   if (sharedDatum) {
-      //     folder.dataValues.shared_by = sharedDatum.shared_by;
-      //     folder.dataValues.share_with = sharedDatum.guest_email;
-      //   }
-      // });
-      // console.log(folders,"folderfromme")
-
-      // console.log("test is --", folders)
 
       const files = await FileUpload.findAll({
         where: {
@@ -581,6 +672,7 @@ router.post("/getfoldernames", async (req, res) => {
           "updatedAt",
           "filemongo_id",
           "user_type",
+          "folder_name"
         ],
       });
       // Apply the function to files (assuming you have a 'files' array)
@@ -588,6 +680,48 @@ router.post("/getfoldernames", async (req, res) => {
         addSharedInfo(file, guest_data);
       });
 
+      await FolderAndFilesSize(folders)
+
+      
+      // Apply the function to folders
+      // let all_folder = await Folder.findAll({
+      //   where: {
+      //     levels: levels + 1,
+      //     // parent_id: id,
+      //     workspace_name: workspace_name,
+      //     is_recycle: "false",
+      //   },
+      // });
+
+      // for (let j = 0; j < all_folder.length; j++) {
+      //   let one_folder = all_folder[j];
+      //   // console.log(one_folder,"________onefolder")
+      //   let totalSize = 0;
+
+      //   for (let i = 0; i < files.length; i++) {
+      //     let one_file = files[i];
+      //     if (
+      //       one_file.levels === "1" &&
+      //       one_folder.folder_name === one_file.folder_name
+      //     ) {
+      //       totalSize += parseInt(files[i].file_size, 10); // Add the file_size to the totalSize
+      //     }
+      //     console.log(totalSize, ` one_folder.totalSize `);
+      //   }
+      // }
+
+      // let fileSizeOfFolder = 0;
+      // for (let j = 0; j < all_folder.length; j++) {
+      //   let one_folder = all_folder[j]
+      //   for (let i = 0; i < files.length; i++) {
+      //     if (files[i].levels == "1" && one_folder.folder_name==files[i].folder_name ){
+      //       console.log(files[i], `${i}________files`);
+      //       fileSizeOfFolder += parseInt(files[i].file_size, 10); // Parse the file_size property
+      //     }
+      //   }
+      // }
+
+      // console.log(fileSizeOfFolder,"_________fileSize")
       // Return the folder names
 
       return res.status(200).json({ folders, files });
@@ -627,6 +761,10 @@ router.post("/getfoldernames", async (req, res) => {
           id: user_id,
         },
       });
+      // const guest_data = await Guest.findAll({where: {
+      //   is_approved1: "true",
+      //   is_approved2 : "true"
+      // }});
       const guest_data = await Guest.findAll();
 
       function addSharedInfo(object, sharedData) {
@@ -639,13 +777,59 @@ router.post("/getfoldernames", async (req, res) => {
           shared_by: [],
           share_with: [],
         };
-        sharedData.forEach((data) => {
+        sharedData.forEach(async (data) => {
+          let guest_approved = await Guest.findOne({where:{
+            folder_id:data.folder_id
+          },
+          attributes: ["is_approved1", "is_approved2"],
+        })
           if (data.folder_id === object.id) {
             sharedInfo.shared_by.push(data.shared_by);
-            sharedInfo.share_with.push(data.guest_email);
+            // sharedInfo.share_with.push(data.guest_email);
+            if (guest_approved.is_approved1 === "true" && guest_approved.is_approved2 === "true") {
+              sharedInfo.share_with.push(data.guest_email);
+            } else if (guest_approved.is_approved1 === "true" && guest_approved.is_approved2 === "false") {
+              sharedInfo.share_with.push("L1 has approved and L2 is pending");
+            } else if (guest_approved.is_approved2 === "true" && guest_approved.is_approved1 ==="false") {
+              sharedInfo.share_with.push("L2 has approved and L1 is pending ");
+            } else {
+              if (guest_approved.is_approved1 === "false") {
+                sharedInfo.share_with.push("L1 is pending");
+              } else if (guest_approved.is_approved1 === "denied") {
+                sharedInfo.share_with.push("L1 has Declined");
+              }
+            
+              if (guest_approved.is_approved2 === "false") {
+                sharedInfo.share_with.push("L2 is pending");
+              } else if (guest_approved.is_approved2 === "denied") {
+                sharedInfo.share_with.push("L2 has Declined");
+              }
+            }
+
+            object.dataValues.expiry_date = data.expiry_date;
           } else if (data.file_id === object.id) {
             sharedInfo.shared_by.push(data.shared_by);
-            sharedInfo.share_with.push(data.guest_email);
+            // sharedInfo.share_with.push(data.guest_email);
+            if (guest_approved.is_approved1 === "true" && guest_approved.is_approved2 === "true") {
+              sharedInfo.share_with.push(data.guest_email);
+            } else if (guest_approved.is_approved1 === "true" && guest_approved.is_approved2 === "false") {
+              sharedInfo.share_with.push("L1 has approved and L2 is pending");
+            } else if (guest_approved.is_approved2 === "true" && guest_approved.is_approved1 ==="false") {
+              sharedInfo.share_with.push("L2 has approved and L1 is pending ");
+            } else {
+              if (guest_approved.is_approved1 === "false") {
+                sharedInfo.share_with.push("L1 is pending");
+              } else if (guest_approved.is_approved1 === "denied") {
+                sharedInfo.share_with.push("L1 has Declined");
+              }
+            
+              if (guest_approved.is_approved2 === "false") {
+                sharedInfo.share_with.push("L2 is pending");
+              } else if (guest_approved.is_approved2 === "denied") {
+                sharedInfo.share_with.push("L2 has Declined");
+              }
+            }   
+            object.dataValues.expiry_date = data.expiry_date;
           }
         });
         // Assign the arrays to the object.dataValues
@@ -661,6 +845,7 @@ router.post("/getfoldernames", async (req, res) => {
       files.forEach((file) => {
         addSharedInfo(file, guest_data);
       });
+      await FolderAndFilesSize(folders)
       return res.status(200).json({ folders, files });
     }
   } catch (error) {
@@ -1217,6 +1402,13 @@ router.post("/deleterestore", middleware, async (req, res) => {
         await folder.destroy({ where: { id: id } });
       }
       await permananet_delete_folder_and_files(initial_delete_folder);
+      await loggs.create({
+        user_id: email,
+        category: "Delete",
+        action: `Folder Deleted : ${initial_delete_folder.folder_name}`,
+        timestamp: Date.now(),
+        system_ip: "10.10.0.8",
+      });
       return res.status(200).json({ message: "folder deleted sucessfully" });
     }
   } catch (error) {
@@ -1551,7 +1743,6 @@ router.post("/sharedfile", middleware, async (req, res) => {
           mergedData.push({ ...item.dataValues, filese });
         }
       }
-      // console.log(mergedData,"____mergedata");
     }
     return res.status(200).json({ mergedData });
   } catch (error) {
@@ -1562,14 +1753,11 @@ router.post("/sharedfile", middleware, async (req, res) => {
 const cron = require("node-cron");
 const nodemailer = require("nodemailer");
 
-// ... Other necessary imports and setup code ...
-
-// Function to send daily email notifications
 const sendDailyEmail = async (recipients) => {
   try {
     const events = await loggs.findAll({
       where: {
-        category: ["Create", "Delete", "Shared"], // Filter by category
+        category: ["Create", "Delete", "Shared", "Auth", "Upload"],
         timestamp: {
           [Op.gte]: Date.now() - 24 * 60 * 60 * 1000,
         },
@@ -1580,15 +1768,6 @@ const sendDailyEmail = async (recipients) => {
       console.log("No events to notify");
       return;
     }
-
-    // let emailContent =
-    //   '<table border="1" cellpadding="2" cellspacing="0" style="border-collapse: collapse; ">' +
-
-    //   "<tr>" +
-    //   "<th style={{background-color: #FFFFCC}}>User</th>" +
-    //   "<th style={{background-color: #FFFFCC}}>Action</th>" +
-    //   "<th style={{background-color: #FFFFCC}}>Timestamp</th>" +
-    //   "</tr>"; // Added table headers for columns
     let emailContent =
       '<table border="1" cellpadding="2" cellspacing="0" style="border-collapse: collapse;">' +
       "<tr>" +
@@ -1601,29 +1780,20 @@ const sendDailyEmail = async (recipients) => {
       const noTime = parseInt(event.timestamp, 10);
 
       if (!isNaN(noTime)) {
-        // Convert the timestamp to a human-readable format
         const formattedTimestamp = new Date(noTime).toLocaleString();
-        //   emailContent += `
-        //   <tr>
-        //     <td>${event.user_id}</td>
-        //     <td>${event.action}</td>
-        //     <td>${formattedTimestamp}</td>
-        //   </tr>
-        // `;
         emailContent += `
       <tr>
-        <td style="padding-left: 5px; padding-right: 5px;">${event.user_id}</td>
-        <td style="padding-left: 5px; padding-right: 5px;">${event.action}</td>
-        <td style="padding-left: 5px; padding-right: 5px;">${formattedTimestamp}</td>
+      <td style="padding-left: 5px; padding-right: 5px; font-size: 12.6px;">${event.user_id}</td>
+      <td style="padding-left: 5px; padding-right: 5px; font-size: 12.6px;">${event.action}</td>
+      <td style="padding-left: 5px; padding-right: 5px; font-size: 12.6px;">${formattedTimestamp}</td>
       </tr>
+
       `;
       }
     }
     emailContent += "</table>";
 
-    // Send the email
     const transporter = nodemailer.createTransport({
-      // Configure your email transport settings here
       host: "10.10.0.100",
       port: 25,
       secure: false,
@@ -1646,16 +1816,16 @@ const sendDailyEmail = async (recipients) => {
 </html>`;
 
     for (const recipient of recipients) {
-    const mailOptions = {
-      from: "ACME DocHub <noreply.dochub@acmetelepower.in>",
-      to: recipient.email,
-      // to: "logimetrix13@gmail.com",
-      subject: "Daily Event Summary",
-      html: htmlContent,
-    };
+      const mailOptions = {
+        from: "ACME DocHub <noreply.dochub@acmetelepower.in>",
+        to: recipient.email,
+        // to: "logimetrix13@gmail.com",
+        subject: "Daily Event Summary",
+        html: htmlContent,
+      };
 
-    const info = await transporter.sendMail(mailOptions);
-    console.log("Daily Email sent:", info.response);
+      const info = await transporter.sendMail(mailOptions);
+      console.log("Daily Email sent:", info.response);
     }
   } catch (error) {
     console.error("Error sending daily email:", error);
@@ -1672,7 +1842,9 @@ async function fetchDataFromUserDatabase() {
 }
 // Schedule the cron job to run daily at 8 PM
 
-// cron.schedule("08 18 * * *", sendDailyEmail);
-cron.schedule("59 19 * * *", fetchDataFromUserDatabase);
+// cron.schedule("46 11 * * *", sendDailyEmail);
+
+// cron.schedule("59 19 * * *", fetchDataFromUserDatabase);
+cron.schedule("51 11 * * *", fetchDataFromUserDatabase);
 
 module.exports = router;

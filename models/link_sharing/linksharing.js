@@ -30,50 +30,72 @@ const link = sequelize.define(
     share: {
       type: Sequelize.STRING,
       allowedNull: false,
+      defaultValue: "false",
     },
     rename: {
       type: Sequelize.STRING,
       allowedNull: false,
+      defaultValue: "false",
     },
     move: {
       type: Sequelize.STRING,
       allowedNull: false,
+      defaultValue: "false",
     },
     rights: {
       type: Sequelize.STRING,
       allowedNull: false,
+      defaultValue: "false",
     },
     comment: {
       type: Sequelize.STRING,
       allowedNull: false,
+      defaultValue: "false",
     },
     properties: {
       type: Sequelize.STRING,
       allowedNull: false,
+      defaultValue: "false",
     },
     delete_action: {
       type: Sequelize.STRING,
       allowedNull: false,
+      defaultValue: "false",
     },
     download: {
       type: Sequelize.STRING,
       allowedNull: true,
+      defaultValue: "false",
     },
     view: {
       type: Sequelize.STRING,
       allowedNull: true,
+      defaultValue: "false",
     },
     create_folder: {
       type: Sequelize.STRING,
       allowedNull: true,
+      defaultValue: "false",
     },
     upload_file: {
       type: Sequelize.STRING,
       allowedNull: true,
+      defaultValue: "false",
     },
     upload_folder: {
       type: Sequelize.STRING,
       allowedNull: true,
+      defaultValue: "false",
+    },
+    is_approved1:{
+      type: Sequelize.STRING,
+      allowedNull: true,
+      defaultValue: "false",
+    },
+    is_approved2:{
+      type: Sequelize.STRING,
+      allowedNull: true,
+      defaultValue: "false",
     },
     shared_by: {
       type: Sequelize.STRING,

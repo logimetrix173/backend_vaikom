@@ -386,11 +386,13 @@ exports.deleteuser = async(req, res) => {
 exports.blockeduser = async (req, res) => {
   try {
     const id =parseInt( req.body.id);
+    console.log(req.body,"_____________++")
+    
     const user = await User.findByPk(id);
     if (!user) {
       return res.status(404).json({ message: "User not found" });
     }
-    user.user_status = req.body.user_status;
+    user.user_status = req.body.user_status.toString();
     await user.save();
     return res.status(200).json({ message: `User has been ${user.user_status === 'true' ? 'enabled' : 'disabled'}` });
   } catch (error) {

@@ -94,6 +94,10 @@ exports.drop_groups = async(req,res)=>{
 exports.deleteGroup =async (req, res) => {
   try{
   const id = parseInt(req.body.id);
+  const token = req.header("Authorization");
+  const decodedToken = jwt.verify(token, 'acmedms');
+  const  email = decodedToken.user.username
+  console.log(email,"_email")
   Group.destroy({
     where: {
       id: id,
@@ -104,7 +108,7 @@ exports.deleteGroup =async (req, res) => {
       res.status(200).json({ success: true, message: "delete successfully" });
     })
     const loggsfolder = await loggs.create({
-      user_id:id,
+      user_id:email,
       category:"Delete",
       action:`group has been deleted : ${id} `,
       timestamp: Date.now(),

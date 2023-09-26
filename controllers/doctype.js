@@ -126,9 +126,9 @@ router.post('/docstatus', async (req, res) => {
     if (!user) {
       return res.status(404).json({ message: "User not found" });
     }
-    user.doc_status = req.body.status;
-    await user.update;
-    return res.status(200).json({ message: `doctype has been ${user.user_status === 'true' ? 'enabled' : 'disabled'}` });
+    user.doc_status = req.body.user_status.toString();
+    await user.save();
+    return res.status(200).json({ message: `doctype has been ${user.doc_status === 'true' ? 'enabled' : 'disabled'}` });
   } catch (error) {
     console.error(error);
     return res.status(500).json({ message: "Internal server error" });

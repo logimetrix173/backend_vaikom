@@ -72,7 +72,7 @@ const Recyclebin=sequelize.define('Recycle', {
             allowNull: true
     },
 time_stamp:{
-        type:Sequelize.INTEGER,
+        type:Sequelize.BIGINT,
         allowedNull: true,
     },
 total_data_consumed:{

@@ -14,10 +14,11 @@ const Alllogs = require("../../models/logsdetails/alllogs");
 // const guest = require('../../models/link_sharing/linksharing')
 const User = require("..//../models/add_user");
 const workspace = require("../../models/add_workspace");
+const { Op } = require('sequelize');
+
 
 router.post("/guestsignup", middleware, async (req, res) => {
-
-  const {
+  let {
     user_type,
     link_expiry,
     email,
@@ -38,17 +39,22 @@ router.post("/guestsignup", middleware, async (req, res) => {
     create_folder,
     upload_file,
     upload_folder,
+    user_email,
   } = req.body;
+  if (user_email) {
+    email = user_email;
+  }
 
-  if(!email){
-    return res.status(400).send({message:"Please enter Email Before sharing"})
+  if (!email) {
+    return res
+      .status(400)
+      .send({ message: "Please enter Email Before sharing" });
   }
   const token = req.header("Authorization");
 
   // console.log(token,"____fetchlink")
   const decodedToken = jwt.verify(token, "acmedms");
   const email1 = decodedToken.user.username;
-
   let file_id;
   let folder_id;
   if (file_type) {
@@ -89,13 +95,13 @@ router.post("/guestsignup", middleware, async (req, res) => {
         file_id: file_id || null,
         folder_id: folder_id || null,
         guest_email: email,
-        share : share,
-        rename : rename,
-        move : move,
-        rights : rights,
-        comment : comment,
-        properties : properties,
-        delete_action : delete_action,
+        share: share,
+        rename: rename,
+        move: move,
+        rights: rights,
+        comment: comment,
+        properties: properties,
+        delete_action: delete_action,
         expiry_date: link_expiry,
         view: view,
         download: download,
@@ -119,16 +125,16 @@ router.post("/guestsignup", middleware, async (req, res) => {
       });
       // <img src="cid:acmeLogo" alt="acme_logo" height="100px" width="170px">
       const htmlContent = `
-  <html>
-    <p>${message} Dear email.com,</p>
-    <p>The content has been shared with you.</p>
-    <p>- File / Folder Name: png</p>
-    <p>To access the content, click the following link to login: <a href="http://10.10.0.60:3000/guestlogin">Login Link</a></p>
-    <p>Your password is: ${password}</p>
-    <p>This link is valid until: ${link_expiry}</p>
-    <p>Regards,</p>
-    <p>ACME DocHub</p>
-  </html>`;
+        <html>
+          <p>${message} Dear email.com,</p>
+          <p>The content has been shared with you.</p>
+          <p>- File / Folder Name: png</p>
+          <p>To access the content, click the following link to login: <a href="http://10.10.0.60:3000/guestlogin">Login Link</a></p>
+          <p>Your password is: ${password}</p>
+          <p>This link is valid until: ${link_expiry}</p>
+          <p>Regards,</p>
+          <p>ACME DocHub</p>
+        </html>`;
       const mailOptions = {
         from: "ACME DocHub <noreply.dochub@acmetelepower.in>",
         to: email,
@@ -155,7 +161,10 @@ router.post("/guestsignup", middleware, async (req, res) => {
             let fileName = await FileUpload.findOne({ where: { id: file_id } });
             storeName = fileName.file_name;
           } else if (folder_id) {
-            let folderName = await Folder.findOne({ where: { id: folder_id } ,attributes: ["folder_name"]});
+            let folderName = await Folder.findOne({
+              where: { id: folder_id },
+              attributes: ["folder_name"],
+            });
             storeName = folderName.folder_name;
           }
           const loggsfolder = await Alllogs.create({
@@ -172,17 +181,17 @@ router.post("/guestsignup", middleware, async (req, res) => {
       });
     } else {
       //  Guest model is also saved user to user file sharing data
-      await Guest.create({
+      let createdDocument = await Guest.create({
         file_id: file_id || null,
         folder_id: folder_id || null,
         guest_email: email,
-        share : share,
-        rename : rename,
-        move : move,
-        rights : rights,
-        comment : comment,
-        properties : properties,
-        delete_action : delete_action,
+        share: share,
+        rename: rename,
+        move: move,
+        rights: rights,
+        comment: comment,
+        properties: properties,
+        delete_action: delete_action,
         expiry_date: link_expiry,
         view: view,
         download: download,
@@ -196,8 +205,88 @@ router.post("/guestsignup", middleware, async (req, res) => {
         let fileName = await FileUpload.findOne({ where: { id: file_id } });
         storeName = fileName.file_name;
       } else if (folder_id) {
-        let folderName = await Folder.findOne({ where: { id: folder_id },attributes: ["folder_name"] });
+        let folderName = await Folder.findOne({
+          where: { id: folder_id },
+          attributes: ["folder_name"],
+        });
         storeName = folderName.folder_name;
+      }
+      console.log("i m here1");
+      const transporter = nodemailer.createTransport({
+        host: "10.10.0.100",
+        port: 25,
+        secure: false,
+        auth: {
+          user: "noreply.dochub@acmetelepower.in",
+          pass: "Veer@1234!",
+        },
+        tls: {
+          rejectUnauthorized: false,
+        },
+      });
+      console.log("i m here2");
+
+      // Include the approval token in the HTML content
+      // const htmlContent = `
+      //   <html>
+      //     <p>Dear User,</p>
+      //     <p>The content has been shared after your approval.</p>
+
+      //     <a href="http://10.10.0.105:3000/approve?id=${id}&file_type=${file_type}&action=${'approved'}">
+      //       <button>Approved</button>
+      //     </a>
+      //     <a href="http://10.10.0.105:3000/approve?id=${id}&file_type=${file_type}&action=${'denied'}">
+      //     <button>Denied</button>
+      //     </a>
+      //     <p>Regards,</p>
+      //     <p>ACME DocHub</p>
+      //   </html>`;
+      console.log("i m here3");
+
+      let userLevels = await User.findOne({
+        where: {
+          email: email,
+        },
+        attributes: ["level_1", "level_2"],
+      });
+      // console.log(userLevels,"_____userLevels")
+
+      if (userLevels) {
+        const emails = [];
+
+        if (userLevels.level_1) {
+          emails.push(userLevels.level_1);
+        }
+
+        if (userLevels.level_2) {
+          emails.push(userLevels.level_2);
+        }
+        // console.log(userLevels.level_1,userLevels.level_2, "__________levels")
+        for (const email of emails) {
+          const htmlContent = `
+          <html>
+            <p>Dear User,</p>
+            <p>The content has been shared after your approval.</p>
+            
+            <a href="http://10.10.0.105:3000/approve?id=${createdDocument.id}&user_email=${user_email}&action=${'approved'}&email=${email}">
+              <button>Approved</button>
+            </a>
+            <a href="http://10.10.0.105:3000/approve?id=${createdDocument.id}&user_email=${user_email}&action=${'denied'}&email=${email}">
+            <button>Denied</button>
+            </a>
+            <p>Regards,</p>
+            <p>ACME DocHub</p>
+          </html>`;
+
+          const mailOptions = {
+            from: "ACME DocHub <noreply.dochub@acmetelepower.in>",
+            to: email,
+            subject: `- ACME DocHub - Content to approve.`,
+            html: htmlContent,
+          };
+          const info = await transporter.sendMail(mailOptions);
+          console.log("Daily Email sent to", email, ":", info.response);
+        }
       }
       const loggsfolder = await Alllogs.create({
         user_id: email1,
@@ -216,8 +305,65 @@ router.post("/guestsignup", middleware, async (req, res) => {
       success: false,
       // message: "An error occurred while processing the request",
       message: error.message,
-
     });
+  }
+});
+
+router.get("/approve", async (req, res) => {
+  try {
+    const {id,user_email,action} = req.query
+    console.log(req.query, "__________query");
+    let queryEmail = req.query.email;
+    // let id  = req.query.id
+    // let user_email = req.query.user_email
+
+    const user_details = await User.findOne({
+      where: {
+        email:user_email,
+        [Op.or]: [{ level_1: queryEmail }, { level_2: queryEmail }],
+      },
+      attributes: ["level_1", "level_2"],
+    });
+    console.log(user_details,"__________userDetails")
+    const { level_1, level_2 } = user_details.dataValues;
+    let is_approved_column;
+    if (level_1 === queryEmail) {
+      is_approved_column = "is_approved1";
+    } else if (level_2 === queryEmail) {
+      is_approved_column = "is_approved2";
+    }
+    console.log(is_approved_column,"______approvalColumn")
+    
+
+      if (action === "approved" && is_approved_column) {
+        let xyz = await Guest.update(
+          { [is_approved_column]: "true" }, // Use true (boolean) instead of "true" (string)
+          {
+            where: {
+              id: id,
+            },
+          }
+        );
+        console.log(xyz,"______xyz")
+      return res
+        .status(200)
+        .send({ message: "Approval processed successfully" });
+    } 
+    else if (action == "denied" && is_approved_column) {
+          await Guest.update(
+            { [is_approved_column]: "denied" },
+            {
+              where: {
+                id: id,
+              },
+            }
+          );
+
+      return res.status(200).send({ message: "Approval Denied" });
+    }
+  } catch (error) {
+    console.log(error.message, "_________message");
+    return res.status(500).send({ message: "server error" });
   }
 });
 
@@ -533,18 +679,52 @@ router.post("/guestdata", async (req, res) => {
     const guest_data = await Guest.findAll({
       where: { guest_email: decodedToken.user.username },
     });
+
+    async function FolderAndFilesSize(folders) {
+      async function calculateFolderSize(folder, totalSize) {
+        const files = await FileUpload.findAll({
+          where: {
+            is_recyclebin: "false",
+            folder_name: folder.folder_name,
+          },
+        });
+
+        for (const file of files) {
+          totalSize += parseInt(file.file_size);
+        }
+
+        const childFolders = await Folder.findAll({
+          where: {
+            is_recycle: "false",
+            parent_id: folder.id,
+          },
+        });
+
+        for (const childFolder of childFolders) {
+          totalSize = await calculateFolderSize(childFolder, totalSize);
+        }
+
+        folder.dataValues.folder_size = totalSize;
+        return totalSize;
+      }
+
+      for (let folder of folders) {
+        let totalSize = 0;
+        totalSize = await calculateFolderSize(folder, totalSize);
+      }
+    }
+
     let response_folder = [];
     let response_file = [];
 
     if (id && levels) {
-      // Retrieve folder names where folder_id matches parent_id
       const folder_name = await Folder.findOne({
         where: {
           id: parent_id,
         },
         attributes: ["folder_name"],
       });
-      // console.log(folder_name,"___________folder_nameone")
+
       const folders = await Folder.findAll({
         where: {
           levels: levels,
@@ -583,6 +763,7 @@ router.post("/guestdata", async (req, res) => {
       files.forEach((file) => {
         file.dataValues.shared_by = sharedEmail.shared_by;
       });
+      await FolderAndFilesSize(folders);
 
       return res
         .status(200)
@@ -599,6 +780,7 @@ router.post("/guestdata", async (req, res) => {
             fileInfo = null;
           } else {
             fileInfo.dataValues.shared_by = guest.shared_by;
+            
             fileInfo.dataValues.shared_with = guest.guest_email;
             fileInfo.dataValues.expiry_date = guest.expiry_date;
             fileInfo.dataValues.share = guest.share;
@@ -643,6 +825,7 @@ router.post("/guestdata", async (req, res) => {
           response_folder.push(fileInfo);
         }
       }
+      await FolderAndFilesSize(response_folder);
 
       response_folder = response_folder.filter((folder) => folder !== null);
       response_file = response_file.filter((file) => file !== null);
