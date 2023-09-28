@@ -471,8 +471,8 @@ router.post("/getfoldernames", async (req, res) => {
     const workspace_type1 = await Workspace.findOne({
       where: { workspace_name: workspace_name },
     });
-    if(!workspace_type1 ){
-    console.log("work_space not found");
+    if (!workspace_type1) {
+      console.log("work_space not found");
     }
     let workspace_type = workspace_type1.workspace_type;
     //  console.log(workspace_type1,"fefe")
@@ -493,64 +493,31 @@ router.post("/getfoldernames", async (req, res) => {
             folder_name: folder.folder_name,
           },
         });
-    
+
         for (const file of files) {
           totalSize += parseInt(file.file_size);
         }
-    
+
         const childFolders = await Folder.findAll({
           where: {
             is_recycle: "false",
             parent_id: folder.id,
           },
         });
-    
+
         for (const childFolder of childFolders) {
           totalSize = await calculateFolderSize(childFolder, totalSize);
         }
-    
+
         folder.dataValues.folder_size = totalSize;
         return totalSize;
       }
-    
+
       for (let folder of folders) {
         let totalSize = 0;
         totalSize = await calculateFolderSize(folder, totalSize);
       }
     }
-    
-    // async function FolderAndFilesSize(folders) {
-    //   for (let folder of folders) {
-    //     const files = await FileUpload.findAll({
-    //       where: {
-    //         is_recyclebin: "false",
-    //         folder_name: folder.folder_name,
-    //       },
-    //     });
-    
-    //     let totalSize = 0;
-    
-    //     for (const file of files) {
-    //       totalSize += parseInt(file.file_size);
-    //     }
-    //     // folder.dataValues.folder_size = totalSize;
-    //     const childFolders = await Folder.findAll({
-    //       where: {
-    //         is_recycle: "false",
-    //         parent_id: folder.id,
-    //       },
-    //     });
-    
-    //     for (const childFolder of childFolders) {
-    //       console.log([childFolder],"________childFolder")
-    //       await FolderAndFilesSize([childFolder]);
-    //     }
-    //       folder.dataValues.folder_size = totalSize;
-    //   }
-    // }
-
-    // console.log(user_id,"___vn")
-    // console.log(req.body,"_____body")
     if (id && levels) {
       const folder_name = await Folder.findOne({
         where: {
@@ -570,6 +537,10 @@ router.post("/getfoldernames", async (req, res) => {
           parent_id: id,
           // user_id:user_id,
           workspace_name: workspace_name,
+          [Op.or]: [
+            { workspace_type: workspace_type },
+            { workspace_type: "Guest" },
+          ],
           // workspace_id: workspace_id,
           // workspace_type: workspace_type,
           is_recycle: "false",
@@ -593,42 +564,30 @@ router.post("/getfoldernames", async (req, res) => {
           shared_by: [],
           share_with: [],
         };
-        sharedData.forEach(async (data)  => {
-          let guest_approved = await Guest.findOne({where:{
-            folder_id:data.folder_id
-          },
-          attributes: ["is_approved1", "is_approved2"],
-        })
-        // console.log(guest_approved,"__________guest_approved")
+        sharedData.forEach(async (data) => {
+          let guest_approved = await Guest.findOne({
+            where: {
+              folder_id: data.folder_id,
+            },
+            attributes: ["is_approved1", "is_approved2"],
+          });
+          // console.log(guest_approved,"__________guest_approved")
           if (data.folder_id === object.id) {
             sharedInfo.shared_by.push(data.shared_by);
-          if (guest_approved.is_approved1 === "true" && guest_approved.is_approved2 === "true") {
-            sharedInfo.share_with.push(data.guest_email);
-          } else if (guest_approved.is_approved1 === "true" && guest_approved.is_approved2 === "false") {
-            sharedInfo.share_with.push("L1 has approved and L2 is pending");
-          } else if (guest_approved.is_approved2 === "true" && guest_approved.is_approved1 ==="false") {
-            sharedInfo.share_with.push("L2 has approved and L1 is pending ");
-          } else {
-            if (guest_approved.is_approved1 === "false") {
-              sharedInfo.share_with.push("L1 is pending");
-            } else if (guest_approved.is_approved1 === "denied") {
-              sharedInfo.share_with.push("L1 has Declined");
-            }
-          
-            if (guest_approved.is_approved2 === "false") {
-              sharedInfo.share_with.push("L2 is pending");
-            } else if (guest_approved.is_approved2 === "denied") {
-              sharedInfo.share_with.push("L2 has Declined");
-            }
-          }
-            object.dataValues.expiry_date = data.expiry_date;
-          } else if (data.file_id === object.id) {
-            sharedInfo.shared_by.push(data.shared_by);
-            if (guest_approved.is_approved1 === "true" && guest_approved.is_approved2 === "true") {
-              sharedInfo.share_with.push(data.guest_email);
-            } else if (guest_approved.is_approved1 === "true" && guest_approved.is_approved2 === "false") {
+            if (
+              guest_approved.is_approved1 === "true" &&
+              guest_approved.is_approved2 === "true"
+            ) {
+              sharedInfo.share_with.push(data.guest_email || data.user_email);
+            } else if (
+              guest_approved.is_approved1 === "true" &&
+              guest_approved.is_approved2 === "false"
+            ) {
               sharedInfo.share_with.push("L1 has approved and L2 is pending");
-            } else if (guest_approved.is_approved2 === "true" && guest_approved.is_approved1 ==="false") {
+            } else if (
+              guest_approved.is_approved2 === "true" &&
+              guest_approved.is_approved1 === "false"
+            ) {
               sharedInfo.share_with.push("L2 has approved and L1 is pending ");
             } else {
               if (guest_approved.is_approved1 === "false") {
@@ -636,13 +595,44 @@ router.post("/getfoldernames", async (req, res) => {
               } else if (guest_approved.is_approved1 === "denied") {
                 sharedInfo.share_with.push("L1 has Declined");
               }
-            
+
               if (guest_approved.is_approved2 === "false") {
                 sharedInfo.share_with.push("L2 is pending");
               } else if (guest_approved.is_approved2 === "denied") {
                 sharedInfo.share_with.push("L2 has Declined");
               }
-            }            
+            }
+            object.dataValues.expiry_date = data.expiry_date;
+          } else if (data.file_id === object.id) {
+            sharedInfo.shared_by.push(data.shared_by);
+            if (
+              guest_approved.is_approved1 === "true" &&
+              guest_approved.is_approved2 === "true"
+            ) {
+              sharedInfo.share_with.push(data.guest_email || data.user_email);
+            } else if (
+              guest_approved.is_approved1 === "true" &&
+              guest_approved.is_approved2 === "false"
+            ) {
+              sharedInfo.share_with.push("L1 has approved and L2 is pending");
+            } else if (
+              guest_approved.is_approved2 === "true" &&
+              guest_approved.is_approved1 === "false"
+            ) {
+              sharedInfo.share_with.push("L2 has approved and L1 is pending ");
+            } else {
+              if (guest_approved.is_approved1 === "false") {
+                sharedInfo.share_with.push("L1 is pending");
+              } else if (guest_approved.is_approved1 === "denied") {
+                sharedInfo.share_with.push("L1 has Declined");
+              }
+
+              if (guest_approved.is_approved2 === "false") {
+                sharedInfo.share_with.push("L2 is pending");
+              } else if (guest_approved.is_approved2 === "denied") {
+                sharedInfo.share_with.push("L2 has Declined");
+              }
+            }
             // sharedInfo.share_with.push(data.guest_email);
             object.dataValues.expiry_date = data.expiry_date;
           }
@@ -661,6 +651,10 @@ router.post("/getfoldernames", async (req, res) => {
         where: {
           folder_name: folder_name.folder_name,
           workspace_name: workspace_name,
+          [Op.or]: [
+            { workspace_type: workspace_type },
+            { workspace_type: "Guest" },
+          ],
           is_recyclebin: "false",
         },
         attributes: [
@@ -672,7 +666,8 @@ router.post("/getfoldernames", async (req, res) => {
           "updatedAt",
           "filemongo_id",
           "user_type",
-          "folder_name"
+          "folder_name",
+          "workspace_type"
         ],
       });
       // Apply the function to files (assuming you have a 'files' array)
@@ -680,9 +675,8 @@ router.post("/getfoldernames", async (req, res) => {
         addSharedInfo(file, guest_data);
       });
 
-      await FolderAndFilesSize(folders)
+      await FolderAndFilesSize(folders);
 
-      
       // Apply the function to folders
       // let all_folder = await Folder.findAll({
       //   where: {
@@ -726,12 +720,18 @@ router.post("/getfoldernames", async (req, res) => {
 
       return res.status(200).json({ folders, files });
     } else {
+      console.log(req.body, "__________________body");
       // Retrieve folder names where levels = 0
       const files = await FileUpload.findAll({
         where: {
           levels: "0",
           workspace_name: workspace_name,
           workspace_id: workspace_id,
+          workspace_type: workspace_type,
+          // [Op.or]: [
+          //   { workspace_type: workspace_type },
+          //   // { workspace_type: "Guest" },
+          // ],
           is_recyclebin: "false",
           //  user_id:user_id
         },
@@ -744,15 +744,21 @@ router.post("/getfoldernames", async (req, res) => {
           "updatedAt",
           "filemongo_id",
           "user_type",
+          "workspace_type"
         ],
       });
-      const folders = await Folder.findAll({
+      let folders = await Folder.findAll({
         where: {
           levels: "0",
           // user_id:user_id,
           workspace_name: workspace_name,
           workspace_type: workspace_type,
           workspace_id: workspace_id,
+          workspace_type: workspace_type,
+          // [Op.or]: [
+          //   { workspace_type: workspace_type },
+          //   { workspace_type: "Guest" },
+          // ],
           is_recycle: "false",
         },
       });
@@ -761,11 +767,83 @@ router.post("/getfoldernames", async (req, res) => {
           id: user_id,
         },
       });
-      // const guest_data = await Guest.findAll({where: {
-      //   is_approved1: "true",
-      //   is_approved2 : "true"
-      // }});
       const guest_data = await Guest.findAll();
+
+      // const share_folder_and_files = await Guest.findAll({
+      //   where: {
+      //     user_email: decodedToken.user.username,
+      //     is_approved1:"true",
+      //     is_approved2: "true"
+      //   },
+      // });
+
+      // // console.log(share_folder_and_files,"share_folder_and_files")
+
+      // //folder_id and file_id search in folder
+
+      // const all_workspace = await Workspace.findAll()
+
+      // // Email to search for
+      // const targetEmail = decodedToken.user.username;
+
+      // // Initialize an array to store workspaces allocated to the user
+      // const allocatedWorkspaces = [];
+
+      // // Iterate over the workspaces
+      // for (const workspace of all_workspace) {
+      //   // Check if the target email exists in the selected_users array
+      //   if (workspace.selected_users.includes(targetEmail)) {
+      //     allocatedWorkspaces.push(workspace.workspace_name);
+      //   }
+      // }
+
+      // // Create an array of all unique workspace names
+      // const allWorkspaceNames = [...new Set(all_workspace.map(workspace => workspace.workspace_name))];
+
+      // // Find the workspace names not allocated to the user
+      // const unallocatedWorkspaceNames = allWorkspaceNames.filter(workspaceName => !allocatedWorkspaces.includes(workspaceName));
+      // console.log(unallocatedWorkspaceNames,"unallocatedWorkspaceNames")
+      // // Check if there are unallocated workspace names
+      // if (unallocatedWorkspaceNames.length > 0) {
+      //   let foldersToInclude = [];
+      //   let filesInculdes = [];
+
+      //   for (const item of share_folder_and_files) {
+      //     if (item.folder_id) {
+      //       // If folder_id exists, find it in the Folder model
+      //       const folderName = await Folder.findOne({ where: { id: item.folder_id } });
+      //       console.log(folderName.workspace_name,"________folderaname")
+      //       if (folderName) {
+      //         // Check if the folder's workspace_name is in the allocated workspaces
+      //         if (unallocatedWorkspaceNames.includes(folderName.workspace_name)) {
+      //           // Process the folder data since it's in an allocated workspace
+      //           foldersToInclude.push(folderName);
+      //           // folders.push(folderName)
+      //           console.log('Folder:', folderName);
+      //         }
+      //       }
+      //     }
+
+      //     if (item.file_id) {
+      //       // If file_id exists, find it in the File model
+      //       const fileName = await FileUpload.findOne({ where: { id: item.file_id } });
+
+      //       if (fileName) {
+      //         if (unallocatedWorkspaceNames.includes(fileName.workspace_name)){
+      //           filesInculdes.push(fileName)
+      //           // files.push(fileName)
+      //           console.log('File:', fileName);
+      //         }
+      //         // Process the file data
+      //       }
+      //     }
+      //   }
+      //   console.log(foldersToInclude,"_____foldersToInclude")
+      //   folders.push(...foldersToInclude)
+      //   files.push(...filesInculdes)
+
+      //   console.log(`User with email '${targetEmail}' has not been allocated to the following workspace names: ${unallocatedWorkspaceNames}.`);
+      // }
 
       function addSharedInfo(object, sharedData) {
         const user_type = find_user_data.user_type;
@@ -778,19 +856,29 @@ router.post("/getfoldernames", async (req, res) => {
           share_with: [],
         };
         sharedData.forEach(async (data) => {
-          let guest_approved = await Guest.findOne({where:{
-            folder_id:data.folder_id
-          },
-          attributes: ["is_approved1", "is_approved2"],
-        })
+          let guest_approved = await Guest.findOne({
+            where: {
+              folder_id: data.folder_id,
+            },
+            attributes: ["is_approved1", "is_approved2"],
+          });
           if (data.folder_id === object.id) {
             sharedInfo.shared_by.push(data.shared_by);
             // sharedInfo.share_with.push(data.guest_email);
-            if (guest_approved.is_approved1 === "true" && guest_approved.is_approved2 === "true") {
-              sharedInfo.share_with.push(data.guest_email);
-            } else if (guest_approved.is_approved1 === "true" && guest_approved.is_approved2 === "false") {
+            if (
+              guest_approved.is_approved1 === "true" &&
+              guest_approved.is_approved2 === "true"
+            ) {
+              sharedInfo.share_with.push(data.guest_email || data.user_email);
+            } else if (
+              guest_approved.is_approved1 === "true" &&
+              guest_approved.is_approved2 === "false"
+            ) {
               sharedInfo.share_with.push("L1 has approved and L2 is pending");
-            } else if (guest_approved.is_approved2 === "true" && guest_approved.is_approved1 ==="false") {
+            } else if (
+              guest_approved.is_approved2 === "true" &&
+              guest_approved.is_approved1 === "false"
+            ) {
               sharedInfo.share_with.push("L2 has approved and L1 is pending ");
             } else {
               if (guest_approved.is_approved1 === "false") {
@@ -798,7 +886,7 @@ router.post("/getfoldernames", async (req, res) => {
               } else if (guest_approved.is_approved1 === "denied") {
                 sharedInfo.share_with.push("L1 has Declined");
               }
-            
+
               if (guest_approved.is_approved2 === "false") {
                 sharedInfo.share_with.push("L2 is pending");
               } else if (guest_approved.is_approved2 === "denied") {
@@ -810,11 +898,20 @@ router.post("/getfoldernames", async (req, res) => {
           } else if (data.file_id === object.id) {
             sharedInfo.shared_by.push(data.shared_by);
             // sharedInfo.share_with.push(data.guest_email);
-            if (guest_approved.is_approved1 === "true" && guest_approved.is_approved2 === "true") {
-              sharedInfo.share_with.push(data.guest_email);
-            } else if (guest_approved.is_approved1 === "true" && guest_approved.is_approved2 === "false") {
+            if (
+              guest_approved.is_approved1 === "true" &&
+              guest_approved.is_approved2 === "true"
+            ) {
+              sharedInfo.share_with.push(data.guest_email || data.user_email);
+            } else if (
+              guest_approved.is_approved1 === "true" &&
+              guest_approved.is_approved2 === "false"
+            ) {
               sharedInfo.share_with.push("L1 has approved and L2 is pending");
-            } else if (guest_approved.is_approved2 === "true" && guest_approved.is_approved1 ==="false") {
+            } else if (
+              guest_approved.is_approved2 === "true" &&
+              guest_approved.is_approved1 === "false"
+            ) {
               sharedInfo.share_with.push("L2 has approved and L1 is pending ");
             } else {
               if (guest_approved.is_approved1 === "false") {
@@ -822,13 +919,13 @@ router.post("/getfoldernames", async (req, res) => {
               } else if (guest_approved.is_approved1 === "denied") {
                 sharedInfo.share_with.push("L1 has Declined");
               }
-            
+
               if (guest_approved.is_approved2 === "false") {
                 sharedInfo.share_with.push("L2 is pending");
               } else if (guest_approved.is_approved2 === "denied") {
                 sharedInfo.share_with.push("L2 has Declined");
               }
-            }   
+            }
             object.dataValues.expiry_date = data.expiry_date;
           }
         });
@@ -845,8 +942,9 @@ router.post("/getfoldernames", async (req, res) => {
       files.forEach((file) => {
         addSharedInfo(file, guest_data);
       });
-      await FolderAndFilesSize(folders)
+      await FolderAndFilesSize(folders);
       return res.status(200).json({ folders, files });
+      // return res.status(200).json({ response });
     }
   } catch (error) {
     // Handle any errors that occur during the process
@@ -856,6 +954,167 @@ router.post("/getfoldernames", async (req, res) => {
       .json({ message: "An error occurred while retrieving folder names." });
   }
 });
+
+router.post("/getteamspace", async (req, res) => {
+  try {
+    const { workspace_name, workspace_id } = req.body;
+    const workspace = await Workspace.findOne({
+      where: { workspace_name: workspace_name, workspace_type: "TeamSpace" },
+    });
+    if (!workspace) {
+      console.log("work_space not found");
+    }
+    let workspace_type = workspace.workspace_type;
+
+    const id = parseInt(req.body.parent_id);
+    const levels = parseInt(req.body.levels);
+    const token = req.header("Authorization");
+    if (!token) {
+      return res.status(400).send("enter token");
+    }
+    const decodedToken = jwt.verify(token, "acmedms");
+    console.log(decodedToken, "________decodedtoken");
+    const userEmail = decodedToken.user.username;
+    let share_folder_and_files = await Guest.findAll({
+      where: {
+        user_email: userEmail,
+        is_approved1: "true",
+        is_approved2: "true",
+      },
+    });
+    let folders = [];
+    let files = [];
+
+    if (id && levels) {
+      const folder_name = await Folder.findOne({
+        where: {
+          id: id,
+          workspace_name: workspace_name,
+          [Op.or]: [
+            { workspace_type: workspace_type },
+            { workspace_type: "Guest" },
+          ],
+        },
+        attributes: ["folder_name"],
+      });
+
+       folders = await Folder.findAll({
+        where: {
+          levels: levels,
+          parent_id: id,
+          workspace_name: workspace_name,
+          [Op.or]: [
+            { workspace_type: workspace_type },
+            { workspace_type: "Guest" },
+          ],
+          is_recycle: "false",
+        },
+      });
+
+       files = await FileUpload.findAll({
+        where: {
+          folder_name: folder_name.folder_name,
+          workspace_name: workspace_name,
+          [Op.or]: [
+            { workspace_type: workspace_type },
+            { workspace_type: "Guest" },
+          ],
+          is_recyclebin: "false",
+        },
+        attributes: [
+          "id",
+          "user_id",
+          "file_name",
+          "file_type",
+          "file_size",
+          "updatedAt",
+          "filemongo_id",
+          "user_type",
+          "folder_name",
+        ],
+      });
+    } else {
+      if (
+        workspace.selected_users.includes(userEmail) &&
+        workspace.workspace_type === "TeamSpace" &&
+        workspace.workspace_name == workspace_name
+      ) {
+        for (const item of share_folder_and_files) {
+          if (item.folder_id) {
+            const folderName = await Folder.findOne({
+              where: { id: item.folder_id,workspace_name:workspace_name, is_recycle: "false" },
+            });
+            if (folderName) {
+              folders.push(folderName);
+            }
+          }
+
+          if (item.file_id) {
+            const fileName = await FileUpload.findOne({
+              where: { id: item.file_id,workspace_name:workspace_name, is_recyclebin: "false" },
+            });
+
+            if (fileName) {
+              files.push(fileName);
+            }
+          }
+        }
+      }
+      else{
+        let user_details = await User.findOne({where:{
+          email:userEmail
+        }})
+    
+        console.log(user_details.dataValues.user_type,"_______user_details")
+        if(user_details.dataValues.user_type==="Admin"){
+           files = await FileUpload.findAll({
+            where: {
+              levels: "0",
+              workspace_name: workspace_name,
+              workspace_id: workspace_id,
+              workspace_type: workspace_type,
+              // [Op.or]: [
+              //   { workspace_type: workspace_type },
+              //   { workspace_type: "Guest" },
+              // ],
+              is_recyclebin: "false",
+              //  user_id:user_id
+            },
+            attributes: [
+              "id",
+              "user_id",
+              "file_name",
+              "file_type",
+              "file_size",
+              "updatedAt",
+              "filemongo_id",
+              "user_type",
+              "workspace_type"
+            ],
+          });
+           folders = await Folder.findAll({
+            where: {
+              levels: "0",
+              // user_id:user_id,
+              workspace_name: workspace_name,
+              workspace_type: workspace_type,
+              workspace_id: workspace_id,
+              // [Op.or]: [
+              //   { workspace_type: workspace_type },
+              //   { workspace_type: "Guest" },
+              // ],
+              is_recycle: "false",
+            },
+          });
+        }
+      }
+    }
+    return res.status(200).json({ folders, files });
+  } catch (error) {
+    return res.status(500).send({ status: false, message: error.message });
+  }
+});
+
 router.post("/filedata", middleware, async (req, res) => {
   // console.log(id,"id__id_dd")
   try {
@@ -1844,7 +2103,7 @@ async function fetchDataFromUserDatabase() {
 
 // cron.schedule("46 11 * * *", sendDailyEmail);
 
-// cron.schedule("59 19 * * *", fetchDataFromUserDatabase);
-cron.schedule("51 11 * * *", fetchDataFromUserDatabase);
+cron.schedule("59 19 * * *", fetchDataFromUserDatabase);
+// cron.schedule("51 11 * * *", fetchDataFromUserDatabase);
 
 module.exports = router;

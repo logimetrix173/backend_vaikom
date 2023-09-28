@@ -14,8 +14,7 @@ const Alllogs = require("../../models/logsdetails/alllogs");
 // const guest = require('../../models/link_sharing/linksharing')
 const User = require("..//../models/add_user");
 const workspace = require("../../models/add_workspace");
-const { Op } = require('sequelize');
-
+const { Op } = require("sequelize");
 
 router.post("/guestsignup", middleware, async (req, res) => {
   let {
@@ -40,6 +39,7 @@ router.post("/guestsignup", middleware, async (req, res) => {
     upload_file,
     upload_folder,
     user_email,
+    workspace_name
   } = req.body;
   if (user_email) {
     email = user_email;
@@ -170,7 +170,7 @@ router.post("/guestsignup", middleware, async (req, res) => {
           const loggsfolder = await Alllogs.create({
             user_id: email1,
             category: "Shared",
-            action: `${storeName} has been Shared to : ${email}`,
+            action: `${storeName} has been Shared to Guest : ${email}`,
             timestamp: Date.now(),
             system_ip: "10.10.0.8",
           });
@@ -184,7 +184,7 @@ router.post("/guestsignup", middleware, async (req, res) => {
       let createdDocument = await Guest.create({
         file_id: file_id || null,
         folder_id: folder_id || null,
-        guest_email: email,
+        user_email: email,
         share: share,
         rename: rename,
         move: move,
@@ -201,17 +201,25 @@ router.post("/guestsignup", middleware, async (req, res) => {
         shared_by: email1,
       });
       let storeName;
+      let fileName
+      let folderName
       if (file_id) {
-        let fileName = await FileUpload.findOne({ where: { id: file_id } });
+        fileName = await FileUpload.findOne({ where: { id: file_id },  attributes: ["workspace_name","file_name"], });
         storeName = fileName.file_name;
       } else if (folder_id) {
-        let folderName = await Folder.findOne({
+        folderName = await Folder.findOne({
           where: { id: folder_id },
-          attributes: ["folder_name"],
+          attributes: ["folder_name","workspace_name"],
         });
         storeName = folderName.folder_name;
       }
-      console.log("i m here1");
+      let workSpaceNameFromFolderOrFile;
+      if (fileName && fileName.dataValues.workspace_name) {
+        workSpaceNameFromFolderOrFile = fileName.dataValues.workspace_name;
+      } else if (folderName && folderName.dataValues.workspace_name) {
+        workSpaceNameFromFolderOrFile = folderName.dataValues.workspace_name;
+      }
+      console.log(workSpaceNameFromFolderOrFile,"_______workSpaceNameFromFolderOrFile")
       const transporter = nodemailer.createTransport({
         host: "10.10.0.100",
         port: 25,
@@ -241,68 +249,113 @@ router.post("/guestsignup", middleware, async (req, res) => {
       //     <p>Regards,</p>
       //     <p>ACME DocHub</p>
       //   </html>`;
-      console.log("i m here3");
 
-      let userLevels = await User.findOne({
+      let userdetailsLogin = await User.findOne({
         where: {
-          email: email,
+          email: email1,
         },
-        attributes: ["level_1", "level_2"],
       });
-      // console.log(userLevels,"_____userLevels")
+      // console.log(folderName, "_________folderNmae");
+      console.log(fileName, "_________fileNmae");
 
-      if (userLevels) {
-        const emails = [];
 
-        if (userLevels.level_1) {
-          emails.push(userLevels.level_1);
-        }
+      //jisko share kiya ja rha hai  { user_email }  usko check  kro ki kis teamspace ka hai agr nhi hai to assign kr do team space aur folder / file sshare kr do
 
-        if (userLevels.level_2) {
-          emails.push(userLevels.level_2);
-        }
-        // console.log(userLevels.level_1,userLevels.level_2, "__________levels")
-        for (const email of emails) {
-          const htmlContent = `
+      if (userdetailsLogin.dataValues.user_type === "User") {
+        let userLevels = await User.findOne({
+          where: {
+            email: email,
+          },
+          attributes: ["level_1", "level_2"],
+        });
+        // console.log(userLevels,"_____userLevels")
+
+        if (userLevels) {
+          const emails = [];
+
+          if (userLevels.level_1) {
+            emails.push(userLevels.level_1);
+          }
+
+          if (userLevels.level_2) {
+            emails.push(userLevels.level_2);
+          }
+          // console.log(userLevels.level_1,userLevels.level_2, "__________levels")
+          for (const email of emails) {
+            console.log("i m here")
+            const htmlContent = `
           <html>
             <p>Dear User,</p>
             <p>The content has been shared after your approval.</p>
             
-            <a href="http://10.10.0.105:3000/approve?id=${createdDocument.id}&user_email=${user_email}&action=${'approved'}&email=${email}">
+            <a href="http://10.10.0.105:3000/approve?id=${
+              createdDocument.id
+            }&user_email=${user_email}&action=${"approved"}&workspace_name=${workSpaceNameFromFolderOrFile}&email=${email}">
               <button>Approved</button>
             </a>
-            <a href="http://10.10.0.105:3000/approve?id=${createdDocument.id}&user_email=${user_email}&action=${'denied'}&email=${email}">
+            <a href="http://10.10.0.105:3000/approve?id=${
+              createdDocument.id
+            }&user_email=${user_email}&action=${"denied"}&workspace_name=${workSpaceNameFromFolderOrFile}&email=${email}">
             <button>Denied</button>
             </a>
             <p>Regards,</p>
             <p>ACME DocHub</p>
           </html>`;
-
-          const mailOptions = {
-            from: "ACME DocHub <noreply.dochub@acmetelepower.in>",
-            to: email,
-            subject: `- ACME DocHub - Content to approve.`,
-            html: htmlContent,
-          };
-          const info = await transporter.sendMail(mailOptions);
-          console.log("Daily Email sent to", email, ":", info.response);
+// push code on github ok
+            const mailOptions = {
+              from: "ACME DocHub <noreply.dochub@acmetelepower.in>",
+              to: email,
+              subject: `- ACME DocHub - Content to approve.`,
+              html: htmlContent,
+            };
+            const info = await transporter.sendMail(mailOptions);
+            console.log("Daily Email sent to", email, ":", info.response);
+          }
+        }
+      } else {
+        await Guest.update(
+          {
+            is_approved1: "true",
+            is_approved2: "true",
+          },
+          {
+            where: {
+              id: createdDocument.id,
+            },
+          }
+        );
+        //workspacename form body is assigned to user whith whome the file or folder has been shared
+        
+        let workSpaceCheck = await workspace.findOne({where:{
+          workspace_name: workspace_name,
+          workspace_type :"TeamSpace"
+        }})
+        if(!workSpaceCheck){
+          return res.status(404).send({message:`${workspace_name}  TeamSpace is not available in workspace database`})
+        }
+        console.log(workSpaceCheck,"______workspacecheck")
+        if (!workSpaceCheck.selected_users.includes(user_email)) {
+          const updatedSelectedUsers = [...workSpaceCheck.selected_users, user_email];
+          console.log(updatedSelectedUsers,"_______updatedSelectedUsers")
+          await workSpaceCheck.update({
+            selected_users: updatedSelectedUsers
+          });
         }
       }
       const loggsfolder = await Alllogs.create({
         user_id: email1,
         category: "Shared",
-        action: `${storeName} has been Shared to : ${email}`,
+        action: `${storeName} has been Shared to User : ${email}`,
         timestamp: Date.now(),
         system_ip: "10.10.0.8",
       });
-
       return res
         .status(200)
         .json({ message: "file sent to user successfully" });
     }
   } catch (error) {
     return res.status(500).json({
-      success: false,
+      status: false,
       // message: "An error occurred while processing the request",
       message: error.message,
     });
@@ -311,7 +364,7 @@ router.post("/guestsignup", middleware, async (req, res) => {
 
 router.get("/approve", async (req, res) => {
   try {
-    const {id,user_email,action} = req.query
+    const { id, user_email, action ,workspace_name} = req.query;
     console.log(req.query, "__________query");
     let queryEmail = req.query.email;
     // let id  = req.query.id
@@ -319,12 +372,12 @@ router.get("/approve", async (req, res) => {
 
     const user_details = await User.findOne({
       where: {
-        email:user_email,
+        email: user_email,
         [Op.or]: [{ level_1: queryEmail }, { level_2: queryEmail }],
       },
       attributes: ["level_1", "level_2"],
     });
-    console.log(user_details,"__________userDetails")
+    console.log(user_details, "__________userDetails");
     const { level_1, level_2 } = user_details.dataValues;
     let is_approved_column;
     if (level_1 === queryEmail) {
@@ -332,32 +385,40 @@ router.get("/approve", async (req, res) => {
     } else if (level_2 === queryEmail) {
       is_approved_column = "is_approved2";
     }
-    console.log(is_approved_column,"______approvalColumn")
-    
+    console.log(is_approved_column, "______approvalColumn");
 
-      if (action === "approved" && is_approved_column) {
-        let xyz = await Guest.update(
-          { [is_approved_column]: "true" }, // Use true (boolean) instead of "true" (string)
-          {
-            where: {
-              id: id,
-            },
+    if (action === "approved" && is_approved_column) {
+     let guestData =  await Guest.update(
+        { [is_approved_column]: "true" }, // Use true (boolean) instead of "true" (string)
+        {
+          where: {
+            id: id,
+          },
+        }
+      );
+      if(guestData.is_approved1==="true"&& guestData.is_approved2==="true"){
+
+        await workspace.update({
+          where:{
+            workspace_name:workspace_name,
+            workspace_type: "TeamSpace"
           }
-        );
-        console.log(xyz,"______xyz")
+        })
+
+      }
+
       return res
         .status(200)
         .send({ message: "Approval processed successfully" });
-    } 
-    else if (action == "denied" && is_approved_column) {
-          await Guest.update(
-            { [is_approved_column]: "denied" },
-            {
-              where: {
-                id: id,
-              },
-            }
-          );
+    } else if (action === "denied" && is_approved_column) {
+      await Guest.update(
+        { [is_approved_column]: "denied" },
+        {
+          where: {
+            id: id,
+          },
+        }
+      );
 
       return res.status(200).send({ message: "Approval Denied" });
     }
@@ -780,7 +841,7 @@ router.post("/guestdata", async (req, res) => {
             fileInfo = null;
           } else {
             fileInfo.dataValues.shared_by = guest.shared_by;
-            
+
             fileInfo.dataValues.shared_with = guest.guest_email;
             fileInfo.dataValues.expiry_date = guest.expiry_date;
             fileInfo.dataValues.share = guest.share;

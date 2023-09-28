@@ -21,7 +21,11 @@ const link = sequelize.define(
     },
     guest_email: {
       type: Sequelize.STRING,
-      allowedNull: false,
+      allowNull: true,
+    },
+    user_email: {
+      type: Sequelize.STRING,
+     allowNull: true,
     },
     expiry_date: {
       type: Sequelize.STRING,

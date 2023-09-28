@@ -1,6 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const Policy = require("../models/policies/policy");
+
 // router.post('/addpolicies',async(req,res)=>{
 // try {
 //   console.log(req.body,"______polices")
@@ -193,4 +194,7 @@ router.post("/deletepolicy", async (req, res) => {
     return res.status(500).json({ message: "server error" });
   }
 });
+
+
+
 module.exports = router;
